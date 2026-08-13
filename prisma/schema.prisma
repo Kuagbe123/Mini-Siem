@@ -1,0 +1,85 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMINISTRATOR
+  ANALYST
+  AUDITOR
+}
+
+model User {
+  id           String     @id @default(uuid())
+  username     String     @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime   @default(now())
+  sessions     Session[]
+  auditLogs    AuditLog[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model EventSource {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  token     String   @unique // For authenticating event submissions
+  createdAt DateTime @default(now())
+  events    Event[]
+}
+
+model Event {
+  id              String      @id @default(uuid())
+  timestamp       DateTime    // Event source's timestamp
+  receivedAt      DateTime    @default(now()) // System timestamp for integrity
+  eventType       String
+  severity        String
+  sourceId        String
+  source          EventSource @relation(fields: [sourceId], references: [id])
+  payload         Json        // Flexible JSON details (IP, username, changes, etc.)
+  alerts          Alert[]
+}
+
+model DetectionRule {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  eventType   String
+  threshold   Int      @default(1) // Number of events within timeWindow
+  timeWindow  Int      @default(60) // In seconds
+  severity    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Alert {
+  id          String   @id @default(uuid())
+  ruleName    String
+  severity    String
+  status      String   @default("NEW") // NEW, INVESTIGATING, RESOLVED, FALSE_POSITIVE
+  notes       String?
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  timestamp  DateTime @default(now())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String   // e.g., AUTH_SUCCESS, RULE_CREATE, USER_CREATE, ALERT_STATUS
+  details    String
+}
