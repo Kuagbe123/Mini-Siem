@@ -96,7 +96,7 @@ Time constraints during the 48-hour development window led to design choices suc
 ## 13. Deployment
 The application is configured to build and deploy to **Render** using Next.js static and dynamic route handlers (configuration is detailed in `render.yaml`).
 * **Source Repository:** [https://github.com/Kuagbe123/Mini-Siem](https://github.com/Kuagbe123/Mini-Siem)
-* **Live Deployment URL:** [Insert Live URL here]
+* **Live Deployment URL:** https://mini-siem-wam4.onrender.com
 
 ---
 
