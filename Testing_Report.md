@@ -13,9 +13,11 @@
 
 This document details the testing and quality assurance activities conducted for the Mini-SIEM platform. The test strategy is designed to verify that the implementation satisfies all Functional Requirements (**FR-1** through **FR-7**) and meets the quality criteria for a secure, tamper-evident event log manager.
 
-The testing lifecycle follows a multi-tiered approach:
-1. **Automated Integration Testing:** Executed programmatically using a dedicated script ([`test-verification.js`](file:///c:/Users/User/Desktop/Mini-Siem/test-verification.js)) to test API request/response flows, schema validation, state transitions, detection rule evaluation, cryptographic hashing, and role-based access control.
-2. **Manual System and UI Verification:** Executed via browser testing to validate user interface layouts, responsiveness, animations (cyber-auditing background), and the interactive password show/hide functionality.
+The testing lifecycle follows a comprehensive 4-tier strategy:
+1. **Security Workflows Testing:** Verification of security controls including cryptographic SHA-256 event block chaining, timing-safe PBKDF2 password verification, role-based access control (RBAC) API guards, HttpOnly session cookie enforcement, and automatic audit logging.
+2. **Unit Testing:** Executed via Node's native test runner ([`test/unit-tests.js`](file:///c:/Users/User/Desktop/Mini-Siem/test/unit-tests.js)) to validate individual utility functions, password strength policies (FR-6.6), hashing salt separation, and deterministic tamper-evident SHA-256 hash generation.
+3. **End-to-End (E2E) & Integration Testing:** Executed programmatically using a dedicated runner ([`test-verification.js`](file:///c:/Users/User/Desktop/Mini-Siem/test-verification.js)) to test live API request/response flows, schema validation, state transitions, detection rule evaluation, alert generation, and audit querying across all system layers.
+4. **Regression Testing:** Continuous verification executed before each production commit to confirm that UI refactoring (e.g. style property cleanups and custom CSS keyframe injections) does not break existing functional contracts or API routes.
 
 ---
 
@@ -39,7 +41,22 @@ The following test cases represent the execution of [`test-verification.js`](fil
 
 ---
 
-## 3. Manual UI Verification Cases
+## 3. Unit Test Cases (Security & Utility Functions)
+
+Executed via `node test/unit-tests.js` (and configurable via `npm test`):
+
+| Test ID | Function / Area | Test Description | Expected Result | Actual Result | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **UT-1.1** | `validatePasswordStrength` | Valid password (`AdminPassword123!`) | Returns `true` | `true` | **PASS** |
+| **UT-1.2** | `validatePasswordStrength` | Weak passwords (short, missing number/uppercase/special) | Returns `false` for each rule violation | `false` | **PASS** |
+| **UT-2.1** | `hashPassword` | PBKDF2 hashing format validation | Hash contains `salt:hash` delimiter | Formatted salt:hash string generated | **PASS** |
+| **UT-2.2** | `verifyPassword` | Correct vs Incorrect password verification | Timing-safe verification passes on match; returns `false` on mismatch | Correct matching & rejection | **PASS** |
+| **UT-3.1** | `calculateEventHash` | SHA-256 Digest sizing & format | 64 hex character SHA-256 digest | 64 hex digest returned | **PASS** |
+| **UT-3.2** | `calculateEventHash` | Tamper detection on payload alteration | Hash changes if payload data is tampered | Different hash generated | **PASS** |
+
+---
+
+## 4. Manual UI Verification Cases
 
 Manual browser checks were carried out to ensure visual quality, performance, and interaction fidelity conform to modern design aesthetics and Apple-style custom standards.
 
@@ -75,7 +92,7 @@ Manual browser checks were carried out to ensure visual quality, performance, an
 
 ---
 
-## 4. Defect Log and Corrective Actions
+## 5. Defect Log and Corrective Actions
 
 During integration testing, one warning was flagged by Next.js during compilation:
 * **Defect:** Unused catch block parameter `err` in [`src/app/login/page.tsx`](file:///c:/Users/User/Desktop/Mini-Siem/src/app/login/page.tsx#L220).
@@ -84,6 +101,6 @@ During integration testing, one warning was flagged by Next.js during compilatio
 
 ---
 
-## 5. Conclusion
+## 6. Conclusion
 
 The testing activities demonstrate that the Mini-SIEM platform satisfies **100%** of its defined functional scope. The automated tests successfully validate security boundaries and transactional integrity, while the manual checks confirm a high-fidelity, professional user interface. The platform is verified as stable and ready for deployment.
