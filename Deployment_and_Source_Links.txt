@@ -1,0 +1,14 @@
+Student Name: [Insert Your Name Here]
+Student ID: [Insert Your Student ID Here]
+Project Title: Mini Security Information and Event Management (Mini-SIEM) System
+
+Live Application: [Insert Deployed Vercel/Render URL Here, e.g. https://mini-siem.onrender.com]
+Admin URL: [Insert Admin Login URL Here, e.g. https://mini-siem.onrender.com/login]
+
+Test Username: analyst
+Test Password: AnalystPassword123!
+
+Admin Username: admin
+Admin Password: AdminPassword123!
+
+Source Code Repository: https://github.com/Kuagbe123/Mini-Siem
