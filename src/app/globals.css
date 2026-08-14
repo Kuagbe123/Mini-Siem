@@ -1,46 +1,43 @@
-/* Mini-SIEM Global Design System (Vanilla CSS) */
+/* Cybersecurity Operations Command Center Design System */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 
 :root {
-  /* Core Theme Colors (Dark Theme First) */
-  --bg-base: #0a0b0e;
-  --bg-card: rgba(18, 20, 26, 0.65);
-  --bg-input: rgba(30, 32, 42, 0.7);
-  --bg-hover: rgba(255, 255, 255, 0.04);
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.15);
+  /* Dense Cyber Dark Color Palette */
+  --bg-primary: #060709;
+  --bg-secondary: #0d0f14;
+  --bg-tertiary: #12161f;
+  --bg-accent: #171b26;
+  --border-dim: #1f2533;
+  --border-bright: #323c52;
   
-  --text-primary: #f3f4f6;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
+  --text-bright: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-dim: #475569;
   
-  /* Accent Colors */
-  --primary: #4f46e5;
-  --primary-hover: #6366f1;
-  --primary-glow: rgba(79, 70, 229, 0.15);
+  /* Brand/Indigo Accents */
+  --brand: #6366f1;
+  --brand-hover: #818cf8;
+  --brand-alpha: rgba(99, 102, 241, 0.1);
   
-  /* Status Colors */
-  --color-critical: #ef4444;
-  --color-critical-bg: rgba(239, 68, 68, 0.1);
-  --color-high: #f97316;
-  --color-high-bg: rgba(249, 115, 22, 0.1);
-  --color-medium: #eab308;
-  --color-medium-bg: rgba(234, 179, 8, 0.1);
-  --color-low: #06b6d4;
-  --color-low-bg: rgba(6, 182, 212, 0.1);
-  --color-info: #3b82f6;
-  --color-info-bg: rgba(59, 130, 246, 0.1);
+  /* SIEM Severity Levels (Professional, Non-Toyish Glows) */
+  --severity-critical: #ef4444;
+  --severity-critical-bg: rgba(239, 68, 68, 0.08);
+  --severity-high: #f97316;
+  --severity-high-bg: rgba(249, 115, 22, 0.08);
+  --severity-medium: #eab308;
+  --severity-medium-bg: rgba(234, 179, 8, 0.08);
+  --severity-low: #06b6d4;
+  --severity-low-bg: rgba(6, 182, 212, 0.08);
+  --severity-info: #3b82f6;
+  --severity-info-bg: rgba(59, 130, 246, 0.08);
   
-  /* Layout Options */
-  --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --backdrop-blur: blur(12px);
-  --shadow-glow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  --card-radius: 12px;
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --transition-fast: all 0.15s ease-out;
 }
 
-/* Base resets */
+/* Global Reset & Base */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -48,151 +45,194 @@
 }
 
 body {
-  background-color: var(--bg-base);
-  color: var(--text-primary);
-  font-family: var(--font-family);
-  min-height: 100vh;
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
+  background-color: var(--bg-primary);
+  color: var(--text-bright);
+  font-family: var(--font-sans);
+  font-size: 13px; /* Smaller, enterprise-grade base size */
+  line-height: 1.5;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button, input, select, textarea {
-  font-family: inherit;
-  font-size: inherit;
-}
-
-/* Scrollbar styling */
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
-
 ::-webkit-scrollbar-track {
-  background: var(--bg-base);
+  background: var(--bg-primary);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 4px;
+  background: var(--border-dim);
+  border-radius: 2px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-hover);
+  background: var(--border-bright);
 }
 
-/* Glassmorphism utility classes */
-.glass-panel {
-  background: var(--bg-card);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
-  border: 1px solid var(--border-color);
-  border-radius: var(--card-radius);
-  box-shadow: var(--shadow-glow);
-  transition: var(--transition-smooth);
+/* SIEM Table Grid Layouts */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
 }
 
-.glass-panel:hover {
-  border-color: var(--border-hover);
-}
-
-.glass-input {
-  background: var(--bg-input);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-primary);
-  padding: 10px 14px;
-  outline: none;
-  transition: var(--transition-smooth);
-}
-
-.glass-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-glow);
-}
-
-.glass-button {
-  background: var(--primary);
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  padding: 10px 18px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: var(--transition-smooth);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.glass-button:hover {
-  background: var(--primary-hover);
-  transform: translateY(-1px);
-}
-
-.glass-button:active {
-  transform: translateY(0);
-}
-
-.glass-button-secondary {
-  background: transparent;
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 10px 18px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: var(--transition-smooth);
-}
-
-.glass-button-secondary:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-hover);
-}
-
-/* Status Pill classes */
-.pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 100px;
-  font-size: 0.75rem;
+th {
+  background-color: var(--bg-secondary);
+  color: var(--text-muted);
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-dim);
+  text-align: left;
 }
 
-.pill-critical {
-  background-color: var(--color-critical-bg);
-  color: var(--color-critical);
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-dim);
+  color: var(--text-bright);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+tr:hover td {
+  background-color: var(--bg-accent);
+}
+
+/* Monospace text for logs and hashes */
+.mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Professional Input Elements */
+.siem-input {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-dim);
+  border-radius: 4px;
+  color: var(--text-bright);
+  padding: 6px 10px;
+  font-size: 12px;
+  outline: none;
+  font-family: var(--font-sans);
+  transition: var(--transition-fast);
+}
+
+.siem-input:focus {
+  border-color: var(--brand);
+  background-color: var(--bg-secondary);
+}
+
+/* SIEM Buttons */
+.siem-btn {
+  background-color: var(--brand);
+  color: #ffffff;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.siem-btn:hover {
+  background-color: var(--brand-hover);
+}
+
+.siem-btn-secondary {
+  background-color: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-dim);
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.siem-btn-secondary:hover {
+  background-color: var(--bg-accent);
+  color: var(--text-bright);
+  border-color: var(--border-bright);
+}
+
+/* Compact status labels */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.badge-critical {
+  background-color: var(--severity-critical-bg);
+  color: var(--severity-critical);
   border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
-.pill-high {
-  background-color: var(--color-high-bg);
-  color: var(--color-high);
+.badge-high {
+  background-color: var(--severity-high-bg);
+  color: var(--severity-high);
   border: 1px solid rgba(249, 115, 22, 0.2);
 }
 
-.pill-medium {
-  background-color: var(--color-medium-bg);
-  color: var(--color-medium);
+.badge-medium {
+  background-color: var(--severity-medium-bg);
+  color: var(--severity-medium);
   border: 1px solid rgba(234, 179, 8, 0.2);
 }
 
-.pill-low {
-  background-color: var(--color-low-bg);
-  color: var(--color-low);
+.badge-low {
+  background-color: var(--severity-low-bg);
+  color: var(--severity-low);
   border: 1px solid rgba(6, 182, 212, 0.2);
 }
 
-.pill-info {
-  background-color: var(--color-info-bg);
-  color: var(--color-info);
+.badge-info {
+  background-color: var(--severity-info-bg);
+  color: var(--severity-info);
   border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+/* Panel Containers */
+.siem-panel {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-dim);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.siem-panel-header {
+  background-color: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-dim);
+  padding: 8px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.siem-panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-bright);
+}
+
+.siem-panel-content {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
 }

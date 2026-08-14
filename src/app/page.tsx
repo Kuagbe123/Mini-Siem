@@ -12,8 +12,10 @@ interface User {
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'alerts' | 'events' | 'audit' | 'settings'>('overview');
   
+  // Navigation / Panel states
+  const [mainView, setMainView] = useState<'events' | 'audit' | 'sources'>('events');
+
   // Data States
   const [alerts, setAlerts] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
@@ -21,34 +23,32 @@ export default function DashboardPage() {
   const [sources, setSources] = useState<any[]>([]);
   const [integrityState, setIntegrityState] = useState<{ isValid: boolean; tamperedEventIds: string[]; totalChecked: number } | null>(null);
 
-  // Filter States
-  const [eventFilterType, setEventFilterType] = useState('');
-  const [eventFilterSeverity, setEventFilterSeverity] = useState('');
-  const [eventFilterSource, setEventFilterSource] = useState('');
-
-  // Selected details
+  // Selected Detail States
   const [selectedAlert, setSelectedAlert] = useState<any | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [newSourceName, setNewSourceName] = useState('');
   const [alertStatusUpdate, setAlertStatusUpdate] = useState('');
   const [alertNotesUpdate, setAlertNotesUpdate] = useState('');
 
-  // Injection helper state
+  // Event Filters
+  const [filterType, setFilterType] = useState('');
+  const [filterSeverity, setFilterSeverity] = useState('');
+  const [filterSource, setFilterSource] = useState('');
+
+  // Log Simulation / Injection helper states
   const [mockEventType, setMockEventType] = useState('failed_login');
   const [mockSeverity, setMockSeverity] = useState('HIGH');
   const [mockPayloadKey, setMockPayloadKey] = useState('username');
-  const [mockPayloadVal, setMockPayloadVal] = useState('attacker');
+  const [mockPayloadVal, setMockPayloadVal] = useState('attacker_ip');
   const [mockSourceToken, setMockSourceToken] = useState('');
 
-  // Loading/UX States
+  // Loader / Message states
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [errorMsg, setErrorMsg] = useState('');
+  const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   
   const router = useRouter();
 
-  // 1. Session Check & Initial Fetch
   useEffect(() => {
     fetch('/api/auth/session')
       .then((res) => {
@@ -69,71 +69,58 @@ export default function DashboardPage() {
       });
   }, [router]);
 
+  const showMsg = (text: string, type: 'success' | 'error') => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg(null), 5000);
+  };
+
   const fetchAllData = async (currentUser: User) => {
-    setLoading(true);
     try {
-      await Promise.all([
-        fetchAlerts(),
-        fetchEvents(),
-        fetchSources(),
-        fetchIntegrity(),
-        ...(currentUser.role === 'ADMINISTRATOR' || currentUser.role === 'AUDITOR' ? [fetchAuditLogs()] : []),
-      ]);
+      const alertRes = await fetch('/api/alerts');
+      if (alertRes.ok) {
+        const data = await alertRes.json();
+        setAlerts(data.alerts);
+      }
+
+      const eventRes = await fetch('/api/events');
+      if (eventRes.ok) {
+        const data = await eventRes.json();
+        setEvents(data.events);
+      }
+
+      const sourceRes = await fetch('/api/sources');
+      if (sourceRes.ok) {
+        const data = await sourceRes.json();
+        setSources(data.sources);
+        if (data.sources.length > 0 && !mockSourceToken) {
+          setMockSourceToken(data.sources[0].token);
+        }
+      }
+
+      const integrityRes = await fetch('/api/integrity');
+      if (integrityRes.ok) {
+        const data = await integrityRes.json();
+        setIntegrityState(data);
+      }
+
+      if (currentUser.role === 'ADMINISTRATOR' || currentUser.role === 'AUDITOR') {
+        const auditRes = await fetch('/api/audit');
+        if (auditRes.ok) {
+          const data = await auditRes.json();
+          setAuditLogs(data.auditLogs);
+        }
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching dashboard data:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAlerts = async () => {
-    const res = await fetch('/api/alerts');
-    if (res.ok) {
-      const data = await res.json();
-      setAlerts(data.alerts);
-    }
+  const handleRefresh = () => {
+    if (user) fetchAllData(user);
   };
 
-  const fetchEvents = async (type = '', severity = '', source = '') => {
-    let url = '/api/events?';
-    if (type) url += `eventType=${type}&`;
-    if (severity) url += `severity=${severity}&`;
-    if (source) url += `sourceId=${source}&`;
-    const res = await fetch(url);
-    if (res.ok) {
-      const data = await res.json();
-      setEvents(data.events);
-    }
-  };
-
-  const fetchSources = async () => {
-    const res = await fetch('/api/sources');
-    if (res.ok) {
-      const data = await res.json();
-      setSources(data.sources);
-      if (data.sources.length > 0 && !mockSourceToken) {
-        setMockSourceToken(data.sources[0].token);
-      }
-    }
-  };
-
-  const fetchAuditLogs = async () => {
-    const res = await fetch('/api/audit');
-    if (res.ok) {
-      const data = await res.json();
-      setAuditLogs(data.auditLogs);
-    }
-  };
-
-  const fetchIntegrity = async () => {
-    const res = await fetch('/api/integrity');
-    if (res.ok) {
-      const data = await res.json();
-      setIntegrityState(data);
-    }
-  };
-
-  // Actions
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
@@ -143,8 +130,6 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!newSourceName.trim()) return;
     setActionLoading(true);
-    setErrorMsg('');
-    setSuccessMsg('');
 
     try {
       const res = await fetch('/api/sources', {
@@ -154,15 +139,14 @@ export default function DashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data.error || 'Failed to register source.');
+        showMsg(data.error || 'Failed to register source.', 'error');
       } else {
-        setSuccessMsg(`Source "${newSourceName}" registered successfully!`);
+        showMsg(`Source "${newSourceName}" registered successfully!`, 'success');
         setNewSourceName('');
-        fetchSources();
         if (user) fetchAllData(user);
       }
     } catch {
-      setErrorMsg('Network error.');
+      showMsg('Network error occurred.', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -172,8 +156,6 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!selectedAlert) return;
     setActionLoading(true);
-    setErrorMsg('');
-    setSuccessMsg('');
 
     try {
       const res = await fetch(`/api/alerts/${selectedAlert.id}`, {
@@ -183,15 +165,14 @@ export default function DashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data.error || 'Failed to update alert.');
+        showMsg(data.error || 'Failed to update alert.', 'error');
       } else {
-        setSuccessMsg('Alert updated successfully.');
+        showMsg('Alert status triaged successfully.', 'success');
         setSelectedAlert(null);
-        fetchAlerts();
         if (user) fetchAllData(user);
       }
     } catch {
-      setErrorMsg('Network error.');
+      showMsg('Network error occurred.', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -200,12 +181,10 @@ export default function DashboardPage() {
   const handleInjectMockEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mockSourceToken) {
-      setErrorMsg('Please register and select an event source first.');
+      showMsg('Register an event source first.', 'error');
       return;
     }
     setActionLoading(true);
-    setErrorMsg('');
-    setSuccessMsg('');
 
     try {
       const payload: Record<string, string> = {};
@@ -229,177 +208,349 @@ export default function DashboardPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data.error || 'Mock event injection failed.');
+        showMsg(data.error || 'Failed to simulate event.', 'error');
       } else {
-        setSuccessMsg(`Event Ingested! ID: ${data.eventId}. Chain Secured.`);
+        showMsg(`Log Simulated! Event ID: ${data.eventId}. Chain hash created.`, 'success');
         if (user) fetchAllData(user);
       }
     } catch {
-      setErrorMsg('Network error.');
+      showMsg('Network error occurred.', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleApplyEventFilters = (e: React.FormEvent) => {
+  const handleApplyFilters = async (e: React.FormEvent) => {
     e.preventDefault();
-    fetchEvents(eventFilterType, eventFilterSeverity, eventFilterSource);
+    let url = '/api/events?';
+    if (filterType) url += `eventType=${filterType}&`;
+    if (filterSeverity) url += `severity=${filterSeverity}&`;
+    if (filterSource) url += `sourceId=${filterSource}&`;
+    
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      setEvents(data.events);
+    }
   };
 
-  const handleResetEventFilters = () => {
-    setEventFilterType('');
-    setEventFilterSeverity('');
-    setEventFilterSource('');
-    fetchEvents();
+  const handleResetFilters = () => {
+    setFilterType('');
+    setFilterSeverity('');
+    setFilterSource('');
+    if (user) fetchAllData(user);
+  };
+
+  const handleCheckIntegrity = async () => {
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/integrity');
+      if (res.ok) {
+        const data = await res.json();
+        setIntegrityState(data);
+        if (data.isValid) {
+          showMsg('SHA-256 seal integrity check PASSED successfully!', 'success');
+        } else {
+          showMsg('INTEGRITY COMPROMISED: Tampered event detected in log chain!', 'error');
+        }
+      }
+    } catch {
+      showMsg('Failed to execute integrity checks.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (loading || !user) {
     return (
       <div style={styles.loadingContainer}>
         <div style={styles.spinner}></div>
-        <p style={{ marginTop: '20px', color: '#a1a1aa' }}>Loading dashboard session...</p>
+        <p style={{ marginTop: '20px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>CONNECTING SEC-OPS SOC PLATFORM...</p>
       </div>
     );
   }
 
-  // Dashboard calculations
+  // Dashboard counters
   const openAlerts = alerts.filter(a => a.status === 'NEW' || a.status === 'INVESTIGATING');
-  const criticalAlerts = alerts.filter(a => a.severity === 'CRITICAL' && a.status !== 'RESOLVED');
 
   return (
-    <div style={styles.container}>
-      {/* Upper Navigation Header */}
-      <header className="glass-panel" style={styles.header}>
-        <div style={styles.brand}>
-          <span style={styles.logo}>🛡️</span>
-          <div>
-            <h1 style={styles.brandTitle}>Mini-SIEM Admin</h1>
-            <span style={styles.brandSubtitle}>Cybersecurity Monitoring System</span>
+    <div style={styles.appContainer}>
+      {/* 1. HeaderHUD - Command Center Panel */}
+      <header style={styles.header}>
+        <div style={styles.headerLeft}>
+          <span style={styles.headerIndicator}></span>
+          <span style={styles.headerTitle}>SEC-OPS // MINI-SIEM CONSOLE</span>
+          <span style={styles.headerSub}>v1.0.0-PRO</span>
+        </div>
+
+        <div style={styles.hudStats}>
+          <div style={styles.hudStatItem}>
+            <span style={styles.hudStatLabel}>EPS RATE</span>
+            <span style={styles.hudStatVal}>{(events.length / 10).toFixed(1)} /s</span>
+          </div>
+          <div style={styles.hudStatItem}>
+            <span style={styles.hudStatLabel}>LOG INTEGRITY</span>
+            <span style={{ ...styles.hudStatVal, color: integrityState?.isValid ? '#22c55e' : '#ef4444' }}>
+              {integrityState?.isValid ? 'SEALED (SHA-256)' : 'COMPROMISED'}
+            </span>
+          </div>
+          <div style={styles.hudStatItem}>
+            <span style={styles.hudStatLabel}>DATABASE STATE</span>
+            <span style={{ ...styles.hudStatVal, color: '#06b6d4' }}>POSTGRES (ACTIVE)</span>
+          </div>
+          <div style={styles.hudStatItem}>
+            <span style={styles.hudStatLabel}>ACTIVE RULES</span>
+            <span style={styles.hudStatVal}>4</span>
           </div>
         </div>
-        
+
         <div style={styles.headerRight}>
-          <div style={styles.userInfo}>
-            <span style={styles.username}>{user.username}</span>
-            <span className="pill pill-info" style={{ fontSize: '0.65rem' }}>{user.role}</span>
+          <div style={styles.userBlock}>
+            <span style={styles.userIcon}>👤</span>
+            <span style={styles.userText}>{user.username} ({user.role})</span>
           </div>
-          <button className="glass-button-secondary" style={{ padding: '8px 14px', fontSize: '0.8rem' }} onClick={handleLogout}>
-            Sign Out
+          <button className="siem-btn-secondary" style={styles.headerBtn} onClick={handleRefresh}>
+            🔄 Refresh
+          </button>
+          <button className="siem-btn-secondary" style={styles.headerBtn} onClick={handleLogout}>
+            🚪 Sign Out
           </button>
         </div>
       </header>
 
-      <div style={styles.mainGrid}>
-        {/* Left Navigation Sidebar */}
-        <aside className="glass-panel" style={styles.sidebar}>
-          <button 
-            style={{ ...styles.sidebarBtn, ...(activeTab === 'overview' ? styles.sidebarBtnActive : {}) }}
-            onClick={() => { setActiveTab('overview'); fetchAllData(user); }}
-          >
-            📊 Security Overview
-          </button>
-          <button 
-            style={{ ...styles.sidebarBtn, ...(activeTab === 'alerts' ? styles.sidebarBtnActive : {}) }}
-            onClick={() => { setActiveTab('alerts'); fetchAlerts(); }}
-          >
-            🚨 Alert Center ({openAlerts.length})
-          </button>
-          <button 
-            style={{ ...styles.sidebarBtn, ...(activeTab === 'events' ? styles.sidebarBtnActive : {}) }}
-            onClick={() => { setActiveTab('events'); fetchEvents(); }}
-          >
-            🔎 Event Explorer
-          </button>
-          
-          {(user.role === 'ADMINISTRATOR' || user.role === 'AUDITOR') && (
-            <button 
-              style={{ ...styles.sidebarBtn, ...(activeTab === 'audit' ? styles.sidebarBtnActive : {}) }}
-              onClick={() => { setActiveTab('audit'); fetchAuditLogs(); }}
-            >
-              📜 Audit Logging
-            </button>
-          )}
+      {/* 2. Interactive Status Notifications */}
+      {msg && (
+        <div 
+          style={{ 
+            ...styles.alertBanner, 
+            backgroundColor: msg.type === 'success' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+            borderColor: msg.type === 'success' ? '#22c55e' : '#ef4444',
+            color: msg.type === 'success' ? '#22c55e' : '#ef4444' 
+          }}
+        >
+          {msg.type === 'success' ? '⚡ ' : '🚨 '} {msg.text}
+        </div>
+      )}
 
-          <button 
-            style={{ ...styles.sidebarBtn, ...(activeTab === 'settings' ? styles.sidebarBtnActive : {}) }}
-            onClick={() => { setActiveTab('settings'); fetchSources(); }}
-          >
-            ⚙️ System Settings
-          </button>
-        </aside>
+      {/* 3. Main SIEM Grid - Dense Columns */}
+      <div style={styles.dashboardGrid}>
+        
+        {/* Column 1: Live Alert Feed (30% Width) */}
+        <section className="siem-panel" style={{ flex: 1.1, minWidth: '320px' }}>
+          <div className="siem-panel-header">
+            <span className="siem-panel-title">🚨 Open Triggered Alerts ({openAlerts.length})</span>
+          </div>
+          <div style={styles.alertsContainer}>
+            {alerts.length === 0 ? (
+              <div style={styles.emptyMsg}>NO ACTIVE INCIDENTS DETECTED</div>
+            ) : (
+              alerts.map((a) => {
+                const borderColors = {
+                  CRITICAL: 'var(--severity-critical)',
+                  HIGH: 'var(--severity-high)',
+                  MEDIUM: 'var(--severity-medium)',
+                  LOW: 'var(--severity-low)',
+                  INFO: 'var(--severity-info)'
+                };
+                const color = borderColors[a.severity as keyof typeof borderColors] || 'var(--border-dim)';
 
-        {/* Right Content Area */}
-        <main style={styles.content}>
-          {/* Notification Messages */}
-          {successMsg && <div style={styles.successAlert} onClick={() => setSuccessMsg('')}>✓ {successMsg}</div>}
-          {errorMsg && <div style={styles.errorAlert} onClick={() => setErrorMsg('')}>✗ {errorMsg}</div>}
+                return (
+                  <div 
+                    key={a.id} 
+                    style={{ 
+                      ...styles.alertCard, 
+                      borderLeftColor: color,
+                      backgroundColor: selectedAlert?.id === a.id ? 'var(--bg-accent)' : 'var(--bg-primary)'
+                    }}
+                    onClick={() => {
+                      setSelectedAlert(a);
+                      setSelectedEvent(null);
+                      setAlertStatusUpdate(a.status);
+                      setAlertNotesUpdate(a.notes || '');
+                    }}
+                  >
+                    <div style={styles.alertCardHeader}>
+                      <span className={`badge badge-${a.severity.toLowerCase()}`}>{a.severity}</span>
+                      <span className="mono" style={{ color: 'var(--text-dim)' }}>{new Date(a.createdAt).toLocaleTimeString()}</span>
+                    </div>
+                    <div style={styles.alertCardTitle}>{a.ruleName}</div>
+                    <div style={styles.alertCardFooter}>
+                      <span>Source: <strong style={{ color: 'var(--text-bright)' }}>{a.event?.source?.name || 'API'}</strong></span>
+                      <span className="mono" style={{ color: a.status === 'NEW' ? 'var(--severity-critical)' : 'var(--text-muted)' }}>{a.status}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
 
-          {/* Overview Dashboard Tab */}
-          {activeTab === 'overview' && (
-            <div style={styles.tabContent}>
-              <div style={styles.statsRow}>
-                <div className="glass-panel" style={styles.statsCard}>
-                  <span style={styles.statsCardLabel}>TOTAL EVENTS INGESTED</span>
-                  <h2 style={styles.statsCardVal}>{events.length}</h2>
-                  <span style={styles.statsCardDesc}>Append-Only log verified</span>
-                </div>
-                <div className="glass-panel" style={styles.statsCard}>
-                  <span style={styles.statsCardLabel}>OPEN ALERTS</span>
-                  <h2 style={{ ...styles.statsCardVal, color: openAlerts.length > 0 ? '#f97316' : '#22c55e' }}>
-                    {openAlerts.length}
-                  </h2>
-                  <span style={styles.statsCardDesc}>{criticalAlerts.length} Critical unresolved</span>
-                </div>
-                <div className="glass-panel" style={styles.statsCard}>
-                  <span style={styles.statsCardLabel}>LOG CHAIN INTEGRITY</span>
-                  <h2 style={{ ...styles.statsCardVal, color: integrityState?.isValid ? '#22c55e' : '#ef4444' }}>
-                    {integrityState?.isValid ? 'SECURED' : 'COMPROMISED'}
-                  </h2>
-                  <span style={styles.statsCardDesc}>
-                    {integrityState?.totalChecked} events checked via SHA-256
-                  </span>
-                </div>
+        {/* Column 2: Event Explorer / Stream & Config View (45% Width) */}
+        <section className="siem-panel" style={{ flex: 1.6, minWidth: '450px' }}>
+          <div className="siem-panel-header" style={{ padding: '0 16px', height: '37px' }}>
+            <div style={styles.tabBar}>
+              <button 
+                style={{ ...styles.tabItem, ...(mainView === 'events' ? styles.tabItemActive : {}) }}
+                onClick={() => setMainView('events')}
+              >
+                🔎 Real-time Event Stream
+              </button>
+              {(user.role === 'ADMINISTRATOR' || user.role === 'AUDITOR') && (
+                <button 
+                  style={{ ...styles.tabItem, ...(mainView === 'audit' ? styles.tabItemActive : {}) }}
+                  onClick={() => setMainView('audit')}
+                >
+                  📜 System Audit Log
+                </button>
+              )}
+              <button 
+                style={{ ...styles.tabItem, ...(mainView === 'sources' ? styles.tabItemActive : {}) }}
+                onClick={() => setMainView('sources')}
+              >
+                🔌 Ingestion Config
+              </button>
+            </div>
+            {mainView === 'events' && (
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                {events.length} EVENTS LOADED
+              </span>
+            )}
+          </div>
+
+          {/* Tab Content: Real-time Event Stream */}
+          {mainView === 'events' && (
+            <div style={styles.eventsPane}>
+              {/* Dense Filter bar */}
+              <div style={styles.filterBar}>
+                <form onSubmit={handleApplyFilters} style={styles.filterForm}>
+                  <input
+                    type="text"
+                    placeholder="Filter Event Type"
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value)}
+                    className="siem-input"
+                    style={{ flex: 1, minWidth: '90px', fontSize: '11px', padding: '4px 8px' }}
+                  />
+                  <select
+                    value={filterSeverity}
+                    onChange={(e) => setFilterSeverity(e.target.value)}
+                    className="siem-input"
+                    style={{ minWidth: '80px', fontSize: '11px', padding: '4px 8px' }}
+                  >
+                    <option value="">All Severity</option>
+                    <option value="LOW">LOW</option>
+                    <option value="MEDIUM">MEDIUM</option>
+                    <option value="HIGH">HIGH</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                  </select>
+                  <select
+                    value={filterSource}
+                    onChange={(e) => setFilterSource(e.target.value)}
+                    className="siem-input"
+                    style={{ minWidth: '90px', fontSize: '11px', padding: '4px 8px' }}
+                  >
+                    <option value="">All Sources</option>
+                    {sources.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                  <button type="submit" className="siem-btn" style={{ padding: '4px 10px', fontSize: '11px' }}>Filter</button>
+                  <button type="button" className="siem-btn-secondary" style={{ padding: '4px 10px', fontSize: '11px' }} onClick={handleResetFilters}>Reset</button>
+                </form>
               </div>
 
-              {/* Ingestion Mocking Helper (Highly requested for verification) */}
-              <div className="glass-panel" style={styles.panelCard}>
-                <h3 style={styles.panelTitle}>🧪 Rapid Verification: Inject Mock Security Event</h3>
-                <p style={styles.panelSubtitle}>Simulate security occurrences dynamically to test schema validation, hash chaining, and detection rules in real-time.</p>
-                <form onSubmit={handleInjectMockEvent} style={styles.inlineForm}>
-                  <div style={styles.formGroupInline}>
-                    <label style={styles.formLabel}>Source Token</label>
+              {/* Event Table Grid */}
+              <div style={styles.eventsTableWrapper}>
+                <table style={{ tableLayout: 'fixed' }}>
+                  <colgroup>
+                    <col style={{ width: '80px' }} />
+                    <col style={{ width: '130px' }} />
+                    <col style={{ width: '100px' }} />
+                    <col style={{ width: '140px' }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Severity</th>
+                      <th>Event Type</th>
+                      <th>Source</th>
+                      <th>Time Received</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {events.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} style={styles.emptyRow}>NO EVENT INGESTION LOGGED</td>
+                      </tr>
+                    ) : (
+                      events.map((e) => (
+                        <tr 
+                          key={e.id} 
+                          style={{ 
+                            cursor: 'pointer',
+                            backgroundColor: selectedEvent?.id === e.id ? 'var(--bg-accent)' : 'transparent' 
+                          }}
+                          onClick={() => {
+                            setSelectedEvent(e);
+                            setSelectedAlert(null);
+                          }}
+                        >
+                          <td>
+                            <span className={`badge badge-${e.severity.toLowerCase()}`}>{e.severity}</span>
+                          </td>
+                          <td style={styles.boldText}>{e.eventType}</td>
+                          <td>{e.source?.name || 'Unknown'}</td>
+                          <td className="mono">{new Date(e.receivedAt).toISOString()}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Log Simulation Console Block (Cyber style) */}
+              <div style={styles.simulatorBlock}>
+                <div style={styles.simulatorHeader}>🔌 Log Simulation Console (Ingestion Test)</div>
+                <form onSubmit={handleInjectMockEvent} style={styles.simulatorForm}>
+                  <div style={styles.simInputGroup}>
+                    <label style={styles.simLabel}>Source Token</label>
                     <select 
                       value={mockSourceToken} 
                       onChange={(e) => setMockSourceToken(e.target.value)} 
-                      className="glass-input" 
-                      style={{ fontSize: '0.8rem', padding: '6px 10px', minWidth: '150px' }}
+                      className="siem-input" 
+                      style={styles.simSelect}
                     >
-                      {sources.map(s => (
-                        <option key={s.id} value={s.token}>{s.name}</option>
-                      ))}
+                      {sources.length === 0 ? (
+                        <option value="">No sources registered</option>
+                      ) : (
+                        sources.map(s => (
+                          <option key={s.id} value={s.token}>{s.name}</option>
+                        ))
+                      )}
                     </select>
                   </div>
-                  <div style={styles.formGroupInline}>
-                    <label style={styles.formLabel}>Event Type</label>
+
+                  <div style={styles.simInputGroup}>
+                    <label style={styles.simLabel}>Event Type</label>
                     <select 
                       value={mockEventType} 
                       onChange={(e) => setMockEventType(e.target.value)} 
-                      className="glass-input"
-                      style={{ fontSize: '0.8rem', padding: '6px 10px' }}
+                      className="siem-input"
+                      style={styles.simSelect}
                     >
-                      <option value="failed_login">Failed Login (failed_login)</option>
-                      <option value="privilege_change">Privilege Change (privilege_change)</option>
-                      <option value="log_clearance">Clear Log File (log_clearance)</option>
-                      <option value="port_scan">Network Port Scan (port_scan)</option>
+                      <option value="failed_login">failed_login (Failed Auth)</option>
+                      <option value="privilege_change">privilege_change (Priv Escalation)</option>
+                      <option value="log_clearance">log_clearance (Clear Audits)</option>
+                      <option value="port_scan">port_scan (Reconnaissance)</option>
                     </select>
                   </div>
-                  <div style={styles.formGroupInline}>
-                    <label style={styles.formLabel}>Severity</label>
+
+                  <div style={styles.simInputGroup}>
+                    <label style={styles.simLabel}>Severity</label>
                     <select 
                       value={mockSeverity} 
                       onChange={(e) => setMockSeverity(e.target.value)} 
-                      className="glass-input"
-                      style={{ fontSize: '0.8rem', padding: '6px 10px' }}
+                      className="siem-input"
+                      style={styles.simSelect}
                     >
                       <option value="LOW">LOW</option>
                       <option value="MEDIUM">MEDIUM</option>
@@ -407,393 +558,69 @@ export default function DashboardPage() {
                       <option value="CRITICAL">CRITICAL</option>
                     </select>
                   </div>
-                  <div style={styles.formGroupInline}>
-                    <label style={styles.formLabel}>Payload detail</label>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+
+                  <div style={styles.simInputGroup}>
+                    <label style={styles.simLabel}>Details Payload</label>
+                    <div style={{ display: 'flex', gap: '3px' }}>
                       <input 
                         type="text" 
                         placeholder="key" 
                         value={mockPayloadKey} 
                         onChange={(e) => setMockPayloadKey(e.target.value)} 
-                        className="glass-input"
-                        style={{ fontSize: '0.8rem', padding: '6px 8px', width: '80px' }}
+                        className="siem-input"
+                        style={{ ...styles.simSelect, width: '55px' }}
                       />
                       <input 
                         type="text" 
-                        placeholder="val" 
+                        placeholder="value" 
                         value={mockPayloadVal} 
                         onChange={(e) => setMockPayloadVal(e.target.value)} 
-                        className="glass-input"
-                        style={{ fontSize: '0.8rem', padding: '6px 8px', width: '90px' }}
+                        className="siem-input"
+                        style={{ ...styles.simSelect, width: '70px' }}
                       />
                     </div>
                   </div>
-                  <button type="submit" className="glass-button" style={{ padding: '8px 16px', alignSelf: 'flex-end', fontSize: '0.8rem' }} disabled={actionLoading}>
-                    {actionLoading ? 'Ingesting...' : 'Inject Event'}
+
+                  <button type="submit" className="siem-btn" style={{ padding: '4px 10px', height: '24px', fontSize: '11px', marginTop: '14px' }} disabled={actionLoading}>
+                    {actionLoading ? 'Simulating...' : 'Ingest Log'}
                   </button>
                 </form>
               </div>
-
-              {/* Critical Alerts Dashboard View */}
-              <div style={styles.dashboardSplit}>
-                <div className="glass-panel" style={{ ...styles.panelCard, flex: 1.5 }}>
-                  <h3 style={styles.panelTitle}>⚠️ Recent High Severity Alerts</h3>
-                  <div style={styles.tableWrapper}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr>
-                          <th>Severity</th>
-                          <th>Rule Name</th>
-                          <th>Event Source</th>
-                          <th>Timestamp</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {alerts.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} style={styles.emptyRow}>No alerts triggered. System healthy.</td>
-                          </tr>
-                        ) : (
-                          alerts.slice(0, 5).map((a) => (
-                            <tr key={a.id} style={{ cursor: 'pointer' }} onClick={() => { setSelectedAlert(a); setActiveTab('alerts'); }}>
-                              <td>
-                                <span className={`pill pill-${a.severity.toLowerCase()}`}>{a.severity}</span>
-                              </td>
-                              <td style={styles.boldText}>{a.ruleName}</td>
-                              <td>{a.event?.source?.name || 'Unknown'}</td>
-                              <td>{new Date(a.createdAt).toLocaleString()}</td>
-                              <td>
-                                <span style={styles.statusText}>{a.status}</span>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
-          {/* Alert Center Tab */}
-          {activeTab === 'alerts' && (
-            <div style={styles.tabContent}>
-              <div style={styles.detailSplit}>
-                {/* Alerts List */}
-                <div className="glass-panel" style={{ ...styles.panelCard, flex: 2 }}>
-                  <h3 style={styles.panelTitle}>🚨 Alert Center</h3>
-                  <div style={styles.tableWrapper}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr>
-                          <th>Severity</th>
-                          <th>Rule</th>
-                          <th>Source</th>
-                          <th>Status</th>
-                          <th>Triggered</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {alerts.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} style={styles.emptyRow}>No alerts recorded.</td>
-                          </tr>
-                        ) : (
-                          alerts.map((a) => (
-                            <tr 
-                              key={a.id} 
-                              style={{ 
-                                cursor: 'pointer',
-                                backgroundColor: selectedAlert?.id === a.id ? 'var(--bg-hover)' : 'transparent' 
-                              }} 
-                              onClick={() => {
-                                setSelectedAlert(a);
-                                setAlertStatusUpdate(a.status);
-                                setAlertNotesUpdate(a.notes || '');
-                              }}
-                            >
-                              <td>
-                                <span className={`pill pill-${a.severity.toLowerCase()}`}>{a.severity}</span>
-                              </td>
-                              <td style={styles.boldText}>{a.ruleName}</td>
-                              <td>{a.event?.source?.name || 'Unknown'}</td>
-                              <td>
-                                <span style={styles.statusText}>{a.status}</span>
-                              </td>
-                              <td>{new Date(a.createdAt).toLocaleString()}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Selected Alert Details & Triage Panel */}
-                <div className="glass-panel" style={{ ...styles.panelCard, flex: 1.2 }}>
-                  <h3 style={styles.panelTitle}>🔍 Triage & Investigation</h3>
-                  {selectedAlert ? (
-                    <div style={styles.detailsContent}>
-                      <div style={styles.detailRow}>
-                        <span style={styles.detailLabel}>Alert ID:</span>
-                        <code style={styles.codeText}>{selectedAlert.id}</code>
-                      </div>
-                      <div style={styles.detailRow}>
-                        <span style={styles.detailLabel}>Rule Triggered:</span>
-                        <span>{selectedAlert.ruleName}</span>
-                      </div>
-                      <div style={styles.detailRow}>
-                        <span style={styles.detailLabel}>Severity:</span>
-                        <span className={`pill pill-${selectedAlert.severity.toLowerCase()}`}>{selectedAlert.severity}</span>
-                      </div>
-                      <div style={styles.detailRow}>
-                        <span style={styles.detailLabel}>Timestamp:</span>
-                        <span>{new Date(selectedAlert.createdAt).toLocaleString()}</span>
-                      </div>
-
-                      <div style={styles.detailsDivider}></div>
-
-                      <h4 style={styles.subPanelTitle}>Triggering Event Payload</h4>
-                      <pre style={styles.payloadBox}>
-                        {JSON.stringify(selectedAlert.event?.payload || {}, null, 2)}
-                      </pre>
-
-                      <div style={styles.detailsDivider}></div>
-
-                      {/* Triage Form (RBAC restricted: Auditors cannot edit) */}
-                      <form onSubmit={handleUpdateAlert} style={styles.formVertical}>
-                        <div style={styles.formGroup}>
-                          <label style={styles.formLabel}>Resolution Status</label>
-                          <select
-                            value={alertStatusUpdate}
-                            onChange={(e) => setAlertStatusUpdate(e.target.value)}
-                            className="glass-input"
-                            style={{ width: '100%' }}
-                            disabled={user.role === 'AUDITOR' || actionLoading}
-                          >
-                            <option value="NEW">NEW</option>
-                            <option value="INVESTIGATING">UNDER INVESTIGATION</option>
-                            <option value="RESOLVED">RESOLVED</option>
-                            <option value="FALSE_POSITIVE">FALSE POSITIVE</option>
-                          </select>
-                        </div>
-
-                        <div style={styles.formGroup}>
-                          <label style={styles.formLabel}>Analyst Notes / Resolution Strategy</label>
-                          <textarea
-                            value={alertNotesUpdate}
-                            onChange={(e) => setAlertNotesUpdate(e.target.value)}
-                            className="glass-input"
-                            style={{ width: '100%', height: '80px', resize: 'none' }}
-                            placeholder="Add forensic annotations or resolution details..."
-                            disabled={user.role === 'AUDITOR' || actionLoading}
-                          />
-                        </div>
-
-                        {user.role !== 'AUDITOR' && (
-                          <button type="submit" className="glass-button" style={{ width: '100%' }} disabled={actionLoading}>
-                            {actionLoading ? 'Updating Alert...' : 'Save Resolution'}
-                          </button>
-                        )}
-                      </form>
-                    </div>
-                  ) : (
-                    <div style={styles.emptyDetail}>Select an alert from the table to investigate.</div>
-                  )}
-                </div>
+          {/* Tab Content: System Audit Logs */}
+          {mainView === 'audit' && (user.role === 'ADMINISTRATOR' || user.role === 'AUDITOR') && (
+            <div style={styles.paneContent}>
+              <div style={styles.paneDescription}>
+                System Audit Log records immutable actions performed within this console (**FR-7.1**).
               </div>
-            </div>
-          )}
-
-          {/* Event Explorer Tab */}
-          {activeTab === 'events' && (
-            <div style={styles.tabContent}>
-              {/* Filter controls */}
-              <div className="glass-panel" style={styles.filterCard}>
-                <form onSubmit={handleApplyEventFilters} style={styles.filterForm}>
-                  <div style={styles.formGroupInline}>
-                    <label style={styles.formLabel}>Event Type</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. failed_login"
-                      value={eventFilterType} 
-                      onChange={(e) => setEventFilterType(e.target.value)} 
-                      className="glass-input" 
-                      style={{ fontSize: '0.85rem', padding: '6px 12px' }}
-                    />
-                  </div>
-                  <div style={styles.formGroupInline}>
-                    <label style={styles.formLabel}>Severity</label>
-                    <select
-                      value={eventFilterSeverity}
-                      onChange={(e) => setEventFilterSeverity(e.target.value)}
-                      className="glass-input"
-                      style={{ fontSize: '0.85rem', padding: '6px 12px' }}
-                    >
-                      <option value="">All</option>
-                      <option value="LOW">LOW</option>
-                      <option value="MEDIUM">MEDIUM</option>
-                      <option value="HIGH">HIGH</option>
-                      <option value="CRITICAL">CRITICAL</option>
-                    </select>
-                  </div>
-                  <div style={styles.formGroupInline}>
-                    <label style={styles.formLabel}>Source</label>
-                    <select
-                      value={eventFilterSource}
-                      onChange={(e) => setEventFilterSource(e.target.value)}
-                      className="glass-input"
-                      style={{ fontSize: '0.85rem', padding: '6px 12px' }}
-                    >
-                      <option value="">All</option>
-                      {sources.map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', alignSelf: 'flex-end' }}>
-                    <button type="submit" className="glass-button" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
-                      Apply Filters
-                    </button>
-                    <button type="button" className="glass-button-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }} onClick={handleResetEventFilters}>
-                      Reset
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              <div style={styles.detailSplit}>
-                {/* Events list */}
-                <div className="glass-panel" style={{ ...styles.panelCard, flex: 2 }}>
-                  <h3 style={styles.panelTitle}>🔎 Event Logs</h3>
-                  <div style={styles.tableWrapper}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr>
-                          <th>Severity</th>
-                          <th>Type</th>
-                          <th>Source</th>
-                          <th>Event Date</th>
-                          <th>Received Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {events.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} style={styles.emptyRow}>No events match filters.</td>
-                          </tr>
-                        ) : (
-                          events.map((e) => (
-                            <tr 
-                              key={e.id} 
-                              style={{ 
-                                cursor: 'pointer',
-                                backgroundColor: selectedEvent?.id === e.id ? 'var(--bg-hover)' : 'transparent' 
-                              }} 
-                              onClick={() => setSelectedEvent(e)}
-                            >
-                              <td>
-                                <span className={`pill pill-${e.severity.toLowerCase()}`}>{e.severity}</span>
-                              </td>
-                              <td style={styles.boldText}>{e.eventType}</td>
-                              <td>{e.source?.name || 'Unknown'}</td>
-                              <td>{new Date(e.timestamp).toLocaleString()}</td>
-                              <td>{new Date(e.receivedAt).toLocaleString()}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Event Inspection & Hash Integrity Chain */}
-                <div className="glass-panel" style={{ ...styles.panelCard, flex: 1.2 }}>
-                  <h3 style={styles.panelTitle}>🔬 Event Integrity Inspection</h3>
-                  {selectedEvent ? (
-                    <div style={styles.detailsContent}>
-                      <div style={styles.detailRow}>
-                        <span style={styles.detailLabel}>Event ID:</span>
-                        <code style={styles.codeText}>{selectedEvent.id}</code>
-                      </div>
-                      <div style={styles.detailRow}>
-                        <span style={styles.detailLabel}>Event Type:</span>
-                        <span>{selectedEvent.eventType}</span>
-                      </div>
-                      <div style={styles.detailRow}>
-                        <span style={styles.detailLabel}>Severity:</span>
-                        <span className={`pill pill-${selectedEvent.severity.toLowerCase()}`}>{selectedEvent.severity}</span>
-                      </div>
-
-                      <div style={styles.detailsDivider}></div>
-
-                      <h4 style={styles.subPanelTitle}>Log Hash Chain Properties (FR-2.4)</h4>
-                      <div style={styles.detailRow}>
-                        <span style={styles.detailLabel}>Current SHA-256:</span>
-                        <code style={styles.hashText}>{selectedEvent.payload._hash || 'N/A'}</code>
-                      </div>
-                      <div style={styles.detailRow}>
-                        <span style={styles.detailLabel}>Previous SHA-256:</span>
-                        <code style={styles.hashText}>{selectedEvent.payload._prevHash || 'N/A'}</code>
-                      </div>
-
-                      <div style={styles.detailsDivider}></div>
-
-                      <h4 style={styles.subPanelTitle}>Event Payload Details</h4>
-                      <pre style={styles.payloadBox}>
-                        {(() => {
-                          const { _hash, _prevHash, ...cleanPayload } = selectedEvent.payload;
-                          return JSON.stringify(cleanPayload, null, 2);
-                        })()}
-                      </pre>
-                    </div>
-                  ) : (
-                    <div style={styles.emptyDetail}>Select an event to inspect its cryptographic seals and properties.</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Audit Logs Tab */}
-          {activeTab === 'audit' && (user.role === 'ADMINISTRATOR' || user.role === 'AUDITOR') && (
-            <div className="glass-panel" style={styles.panelCard}>
-              <h3 style={styles.panelTitle}>📜 Immutable System Audit Trails (FR-7.1)</h3>
-              <p style={styles.panelSubtitle}>Append-only listing of all security activities occurring within the Mini-SIEM system. Modification or clearance is prohibited.</p>
-              <div style={styles.tableWrapper}>
-                <table style={styles.table}>
+              <div style={styles.eventsTableWrapper}>
+                <table>
                   <thead>
                     <tr>
-                      <th>Timestamp</th>
-                      <th>Acting Identity</th>
-                      <th>Role</th>
-                      <th>Action Performed</th>
-                      <th>Audit Details</th>
+                      <th>Time</th>
+                      <th>Identity</th>
+                      <th>Action</th>
+                      <th>Forensic Details</th>
                     </tr>
                   </thead>
                   <tbody>
                     {auditLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={5} style={styles.emptyRow}>No system activities logged.</td>
+                        <td colSpan={4} style={styles.emptyRow}>NO SYSTEM AUDITS LOGGED</td>
                       </tr>
                     ) : (
                       auditLogs.map((log) => (
                         <tr key={log.id}>
-                          <td>{new Date(log.timestamp).toLocaleString()}</td>
+                          <td className="mono">{new Date(log.timestamp).toISOString()}</td>
                           <td style={styles.boldText}>{log.user ? log.user.username : 'SYSTEM'}</td>
                           <td>
-                            {log.user ? (
-                              <span className="pill pill-info" style={{ fontSize: '0.65rem' }}>{log.user.role}</span>
-                            ) : (
-                              <span className="pill pill-low" style={{ fontSize: '0.65rem' }}>AUTOMATED</span>
-                            )}
+                            <span className="mono badge badge-info">{log.action}</span>
                           </td>
-                          <td>
-                            <code style={styles.codeText}>{log.action}</code>
+                          <td style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'normal' }}>
+                            {log.details}
                           </td>
-                          <td style={{ color: '#d4d4d8', fontSize: '0.85rem' }}>{log.details}</td>
                         </tr>
                       ))
                     )}
@@ -803,26 +630,27 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Settings Tab */}
-          {activeTab === 'settings' && (
-            <div style={styles.tabContent}>
-              <div style={styles.detailSplit}>
-                {/* Event Source List */}
-                <div className="glass-panel" style={{ ...styles.panelCard, flex: 2 }}>
-                  <h3 style={styles.panelTitle}>🔌 Registered Event Sources (FR-1.5)</h3>
-                  <div style={styles.tableWrapper}>
-                    <table style={styles.table}>
+          {/* Tab Content: Ingestion / Settings Config */}
+          {mainView === 'sources' && (
+            <div style={styles.paneContent}>
+              <div style={styles.settingsSplit}>
+                <div style={{ flex: 1.5 }}>
+                  <div style={styles.paneDescription}>
+                    Currently registered API clients authorized to ship logs (**FR-1.5**).
+                  </div>
+                  <div style={styles.eventsTableWrapper}>
+                    <table>
                       <thead>
                         <tr>
-                          <th>Source Name</th>
-                          <th>Authentication Ingestion Token (Keep Secure)</th>
-                          <th>Registered Date</th>
+                          <th>Client Name</th>
+                          <th>Secret Authorization Token</th>
+                          <th>Registered</th>
                         </tr>
                       </thead>
                       <tbody>
                         {sources.length === 0 ? (
                           <tr>
-                            <td colSpan={3} style={styles.emptyRow}>No sources registered.</td>
+                            <td colSpan={3} style={styles.emptyRow}>NO AGENTS REGISTERED</td>
                           </tr>
                         ) : (
                           sources.map((s) => (
@@ -831,7 +659,7 @@ export default function DashboardPage() {
                               <td>
                                 <code style={styles.codeText}>{s.token}</code>
                               </td>
-                              <td>{new Date(s.createdAt).toLocaleString()}</td>
+                              <td className="mono">{new Date(s.createdAt).toLocaleDateString()}</td>
                             </tr>
                           ))
                         )}
@@ -840,353 +668,551 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Event Source Registration (Requires Admin role: FR-6.3) */}
-                <div className="glass-panel" style={{ ...styles.panelCard, flex: 1.2 }}>
-                  <h3 style={styles.panelTitle}>➕ Register Event Source</h3>
-                  <p style={styles.panelSubtitle}>Add an external agent, network device, or microservice to inject structured logs into the SIEM.</p>
-                  
-                  {user.role === 'ADMINISTRATOR' ? (
+                {user.role === 'ADMINISTRATOR' && (
+                  <div className="siem-panel" style={{ flex: 1, padding: '14px', backgroundColor: 'var(--bg-accent)', height: 'fit-content' }}>
+                    <div style={styles.panelTitle}>Register New Log Source</div>
                     <form onSubmit={handleRegisterSource} style={styles.formVertical}>
                       <div style={styles.formGroup}>
-                        <label style={styles.formLabel}>Source Identifier / Name</label>
+                        <label style={styles.formLabel}>Identifier / Agent Name</label>
                         <input
                           type="text"
                           value={newSourceName}
                           onChange={(e) => setNewSourceName(e.target.value)}
-                          placeholder="e.g. AWS-Ingest, Localhost-Win"
-                          className="glass-input"
+                          placeholder="e.g. AWS-Gateway, Nginx-Proxy"
+                          className="siem-input"
                           style={{ width: '100%' }}
                           disabled={actionLoading}
                           required
                         />
                       </div>
-                      <button type="submit" className="glass-button" style={{ width: '100%' }} disabled={actionLoading}>
-                        {actionLoading ? 'Registering...' : 'Register & Generate Token'}
+                      <button type="submit" className="siem-btn" style={{ width: '100%' }} disabled={actionLoading}>
+                        Generate Token
                       </button>
                     </form>
-                  ) : (
-                    <div style={styles.emptyDetail}>Only Administrators are authorized to register event sources.</div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
-        </main>
+        </section>
+
+        {/* Column 3: Forensic Inspector Panel (25% Width) */}
+        <section className="siem-panel" style={{ flex: 0.9, minWidth: '280px' }}>
+          <div className="siem-panel-header">
+            <span className="siem-panel-title">🔬 Forensic Inspector</span>
+            <button className="siem-btn-secondary" style={{ padding: '2px 8px', fontSize: '10px' }} onClick={handleCheckIntegrity} disabled={actionLoading}>
+              Check Chain
+            </button>
+          </div>
+          <div style={styles.inspectorContent}>
+            {selectedAlert ? (
+              // Alert Triaging Inspector View
+              <div style={styles.inspectorTab}>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaLabel}>OBJECT:</span>
+                  <span className="mono text-bright">ALERT_RECORD</span>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaLabel}>INCIDENT ID:</span>
+                  <code style={styles.codeText}>{selectedAlert.id}</code>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaLabel}>MATCHED RULE:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{selectedAlert.ruleName}</span>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaLabel}>SEVERITY:</span>
+                  <span className={`badge badge-${selectedAlert.severity.toLowerCase()}`}>{selectedAlert.severity}</span>
+                </div>
+
+                <div style={styles.divider}></div>
+
+                <div style={styles.metaLabel}>TRIGGERING EVENT PAYLOAD</div>
+                <pre style={styles.preBox}>
+                  {JSON.stringify(selectedAlert.event?.payload || {}, null, 2)}
+                </pre>
+
+                <div style={styles.divider}></div>
+
+                {/* Triage Form */}
+                <form onSubmit={handleUpdateAlert} style={styles.formVertical}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.formLabel}>Forensic Resolution Status</label>
+                    <select
+                      value={alertStatusUpdate}
+                      onChange={(e) => setAlertStatusUpdate(e.target.value)}
+                      className="siem-input"
+                      style={{ width: '100%' }}
+                      disabled={user.role === 'AUDITOR' || actionLoading}
+                    >
+                      <option value="NEW">NEW</option>
+                      <option value="INVESTIGATING">UNDER INVESTIGATION</option>
+                      <option value="RESOLVED">RESOLVED</option>
+                      <option value="FALSE_POSITIVE">FALSE POSITIVE</option>
+                    </select>
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={styles.formLabel}>Forensic Notes & Timeline</label>
+                    <textarea
+                      value={alertNotesUpdate}
+                      onChange={(e) => setAlertNotesUpdate(e.target.value)}
+                      className="siem-input"
+                      style={{ width: '100%', height: '70px', resize: 'none', fontSize: '11px' }}
+                      placeholder="Add investigation updates..."
+                      disabled={user.role === 'AUDITOR' || actionLoading}
+                    />
+                  </div>
+
+                  {user.role !== 'AUDITOR' && (
+                    <button type="submit" className="siem-btn" style={{ width: '100%', padding: '6px' }} disabled={actionLoading}>
+                      Commit Resolution
+                    </button>
+                  )}
+                </form>
+              </div>
+            ) : selectedEvent ? (
+              // Event Integrity Inspector View
+              <div style={styles.inspectorTab}>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaLabel}>OBJECT:</span>
+                  <span className="mono text-bright">RAW_EVENT_LOG</span>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaLabel}>EVENT ID:</span>
+                  <code style={styles.codeText}>{selectedEvent.id}</code>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaLabel}>EVENT TYPE:</span>
+                  <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{selectedEvent.eventType}</span>
+                </div>
+                <div style={styles.metaRow}>
+                  <span style={styles.metaLabel}>SOURCE ID:</span>
+                  <span className="mono" style={{ color: 'var(--text-muted)' }}>{selectedEvent.sourceId}</span>
+                </div>
+
+                <div style={styles.divider}></div>
+
+                {/* Cryptographic chain verification seals */}
+                <div style={styles.metaLabel}>CRYPTO LOG SEALS (FR-2.4)</div>
+                <div style={styles.sealBlock}>
+                  <div style={styles.sealRow}>
+                    <span style={styles.sealLabel}>CURRENT SHA-256</span>
+                    <code style={styles.sealHash}>{selectedEvent.payload._hash || 'GENESIS'}</code>
+                  </div>
+                  <div style={styles.sealRow}>
+                    <span style={styles.sealLabel}>PREVIOUS SHA-256</span>
+                    <code style={styles.sealHash}>{selectedEvent.payload._prevHash || 'GENESIS'}</code>
+                  </div>
+                </div>
+
+                <div style={styles.divider}></div>
+
+                <div style={styles.metaLabel}>STRUCTURED PAYLOAD DETAILS</div>
+                <pre style={styles.preBox}>
+                  {(() => {
+                    const { _hash, _prevHash, ...clean } = selectedEvent.payload;
+                    return JSON.stringify(clean, null, 2);
+                  })()}
+                </pre>
+              </div>
+            ) : (
+              <div style={styles.emptyInspector}>
+                <p>SELECT ALERT OR EVENT FROM THE PANELS FOR DEEP INSPECTION</p>
+              </div>
+            )}
+          </div>
+        </section>
+
       </div>
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  container: {
-    minHeight: '100vh',
+  appContainer: {
+    height: '100vh',
     width: '100vw',
-    backgroundColor: '#07080a',
-    padding: '24px',
+    backgroundColor: 'var(--bg-primary)',
     display: 'flex',
     flexDirection: 'column',
-    gap: '20px',
-    overflowX: 'hidden',
+    overflow: 'hidden',
+    padding: '8px',
+    gap: '8px',
   },
   loadingContainer: {
+    height: '100vh',
+    width: '100vw',
+    backgroundColor: 'var(--bg-primary)',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: '100vh',
-    width: '100vw',
-    backgroundColor: '#07080a',
   },
   spinner: {
-    width: '40px',
-    height: '40px',
-    border: '3px solid rgba(255,255,255,0.05)',
-    borderTop: '3px solid var(--primary)',
+    width: '32px',
+    height: '32px',
+    border: '2px solid rgba(255,255,255,0.03)',
+    borderTop: '2px solid var(--brand)',
     borderRadius: '50%',
-    animation: 'spin 1s linear infinite',
+    animation: 'spin 0.8s linear infinite',
   },
   header: {
+    background: 'var(--bg-secondary)',
+    border: '1px solid var(--border-dim)',
+    borderRadius: '4px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '16px 24px',
+    padding: '6px 14px',
+    height: '42px',
+    flexShrink: 0,
   },
-  brand: {
+  headerLeft: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    gap: '8px',
   },
-  logo: {
-    fontSize: '2rem',
-    filter: 'drop-shadow(0 0 8px rgba(79,70,229,0.3))',
+  headerIndicator: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    backgroundColor: '#22c55e',
+    boxShadow: '0 0 6px #22c55e',
   },
-  brandTitle: {
-    fontSize: '1.25rem',
-    fontWeight: '600',
+  headerTitle: {
+    fontFamily: 'var(--font-mono)',
+    fontWeight: '700',
+    fontSize: '13px',
     color: '#ffffff',
+    letterSpacing: '0.02em',
+  },
+  headerSub: {
+    fontSize: '9px',
+    fontFamily: 'var(--font-mono)',
+    backgroundColor: 'var(--bg-tertiary)',
+    border: '1px solid var(--border-dim)',
+    color: 'var(--text-muted)',
+    padding: '1px 4px',
+    borderRadius: '2px',
+  },
+  hudStats: {
+    display: 'flex',
+    gap: '24px',
+    alignItems: 'center',
+  },
+  hudStatItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
     lineHeight: '1.2',
   },
-  brandSubtitle: {
-    fontSize: '0.75rem',
-    color: '#71717a',
+  hudStatLabel: {
+    fontSize: '9px',
+    fontWeight: '600',
+    color: 'var(--text-dim)',
+    letterSpacing: '0.04em',
+  },
+  hudStatVal: {
+    fontSize: '11px',
+    fontWeight: '600',
+    color: 'var(--text-bright)',
+    fontFamily: 'var(--font-mono)',
   },
   headerRight: {
     display: 'flex',
     alignItems: 'center',
-    gap: '18px',
+    gap: '10px',
   },
-  userInfo: {
+  userBlock: {
     display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    gap: '2px',
-  },
-  username: {
-    fontSize: '0.85rem',
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  mainGrid: {
-    display: 'flex',
-    gap: '20px',
-    flex: 1,
-    alignItems: 'stretch',
-  },
-  sidebar: {
-    width: '240px',
-    display: 'flex',
-    flexDirection: 'column',
+    alignItems: 'center',
     gap: '6px',
-    padding: '20px 12px',
+    fontSize: '12px',
+    color: 'var(--text-muted)',
+  },
+  userIcon: {
+    fontSize: '12px',
+  },
+  userText: {
+    fontWeight: '500',
+  },
+  headerBtn: {
+    padding: '4px 8px',
+    fontSize: '11px',
+  },
+  alertBanner: {
+    padding: '6px 12px',
+    borderRadius: '4px',
+    border: '1px solid',
+    fontSize: '11px',
+    fontFamily: 'var(--font-mono)',
     flexShrink: 0,
   },
-  sidebarBtn: {
-    textAlign: 'left',
-    padding: '12px 16px',
-    background: 'transparent',
-    border: 'none',
-    borderRadius: '6px',
-    color: '#a1a1aa',
-    fontSize: '0.85rem',
-    fontWeight: '500',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-  },
-  sidebarBtnActive: {
-    background: 'var(--bg-hover)',
-    color: '#ffffff',
-    borderLeft: '3px solid var(--primary)',
-    paddingLeft: '13px',
-  },
-  content: {
-    flex: 1,
+  dashboardGrid: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '20px',
-  },
-  successAlert: {
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-    border: '1px solid rgba(34, 197, 94, 0.2)',
-    color: '#22c55e',
-    borderRadius: '6px',
-    padding: '12px 18px',
-    fontSize: '0.85rem',
-    cursor: 'pointer',
-  },
-  errorAlert: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    border: '1px solid rgba(239, 68, 68, 0.2)',
-    color: '#ef4444',
-    borderRadius: '6px',
-    padding: '12px 18px',
-    fontSize: '0.85rem',
-    cursor: 'pointer',
-  },
-  tabContent: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px',
-  },
-  statsRow: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-    gap: '20px',
-  },
-  statsCard: {
-    padding: '24px',
-    display: 'flex',
-    flexDirection: 'column',
     gap: '8px',
+    flex: 1,
+    overflow: 'hidden',
   },
-  statsCardLabel: {
-    fontSize: '0.75rem',
-    fontWeight: '600',
-    color: '#71717a',
-    letterSpacing: '0.08em',
-  },
-  statsCardVal: {
-    fontSize: '2.25rem',
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  statsCardDesc: {
-    fontSize: '0.75rem',
-    color: '#a1a1aa',
-  },
-  panelCard: {
-    padding: '24px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-  },
-  panelTitle: {
-    fontSize: '1.05rem',
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  panelSubtitle: {
-    fontSize: '0.8rem',
-    color: '#71717a',
-    marginTop: '-8px',
-  },
-  inlineForm: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '16px',
-    marginTop: '8px',
-  },
-  formGroupInline: {
+  alertsContainer: {
+    padding: '8px',
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
+    overflowY: 'auto',
+    flex: 1,
   },
-  formLabel: {
-    fontSize: '0.75rem',
-    color: '#a1a1aa',
-    fontWeight: '500',
-  },
-  dashboardSplit: {
-    display: 'flex',
-    gap: '20px',
-    flexWrap: 'wrap',
-  },
-  tableWrapper: {
-    width: '100%',
-    overflowX: 'auto',
-    marginTop: '10px',
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    textAlign: 'left',
-  },
-  emptyRow: {
-    textAlign: 'center',
-    color: '#71717a',
-    padding: '30px',
-    fontSize: '0.9rem',
-  },
-  boldText: {
-    fontWeight: '600',
-    color: '#ffffff',
-    fontSize: '0.85rem',
-  },
-  statusText: {
-    fontSize: '0.75rem',
-    fontWeight: '600',
-    color: '#a1a1aa',
-  },
-  detailSplit: {
-    display: 'flex',
-    gap: '20px',
-    alignItems: 'stretch',
-    flexWrap: 'wrap',
-  },
-  emptyDetail: {
+  emptyMsg: {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     height: '100%',
-    color: '#71717a',
-    fontSize: '0.85rem',
-    textAlign: 'center',
-    padding: '40px',
-    border: '1px dashed var(--border-color)',
-    borderRadius: '8px',
+    color: 'var(--text-dim)',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px',
+    letterSpacing: '0.05em',
   },
-  detailsContent: {
+  alertCard: {
+    border: '1px solid var(--border-dim)',
+    borderLeftWidth: '4px',
+    borderLeftStyle: 'solid',
+    borderRadius: '4px',
+    padding: '8px 10px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
-    fontSize: '0.85rem',
+    gap: '4px',
+    cursor: 'pointer',
+    transition: 'var(--transition-fast)',
   },
-  detailRow: {
+  alertCardHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: '10px',
   },
-  detailLabel: {
-    color: '#a1a1aa',
+  alertCardTitle: {
+    fontWeight: '600',
+    fontSize: '12px',
+    color: '#ffffff',
   },
-  codeText: {
-    fontFamily: 'monospace',
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    padding: '3px 6px',
-    borderRadius: '4px',
-    fontSize: '0.75rem',
-    color: '#06b6d4',
+  alertCardFooter: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: '10px',
+    color: 'var(--text-muted)',
   },
-  hashText: {
-    fontFamily: 'monospace',
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    padding: '3px 6px',
-    borderRadius: '4px',
-    fontSize: '0.7rem',
-    wordBreak: 'break-all',
-    color: '#eab308',
-    maxWidth: '200px',
+  tabBar: {
+    display: 'flex',
+    gap: '4px',
+    height: '100%',
+    alignItems: 'flex-end',
   },
-  detailsDivider: {
-    height: '1px',
-    backgroundColor: 'var(--border-color)',
-    margin: '8px 0',
+  tabItem: {
+    background: 'transparent',
+    border: 'none',
+    color: 'var(--text-muted)',
+    fontSize: '11px',
+    fontWeight: '600',
+    padding: '8px 12px',
+    cursor: 'pointer',
+    borderBottom: '2px solid transparent',
+    transition: 'var(--transition-fast)',
   },
-  subPanelTitle: {
-    fontSize: '0.8rem',
+  tabItemActive: {
+    color: '#ffffff',
+    borderBottomColor: 'var(--brand)',
+  },
+  eventsPane: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    overflow: 'hidden',
+  },
+  filterBar: {
+    padding: '8px',
+    borderBottom: '1px solid var(--border-dim)',
+    backgroundColor: 'var(--bg-secondary)',
+  },
+  filterForm: {
+    display: 'flex',
+    gap: '6px',
+    flexWrap: 'wrap',
+  },
+  formLabel: {
+    fontSize: '10px',
+    color: 'var(--text-muted)',
+    textTransform: 'uppercase',
+  },
+  eventsTableWrapper: {
+    flex: 1,
+    overflowY: 'auto',
+    backgroundColor: 'var(--bg-primary)',
+  },
+  emptyRow: {
+    textAlign: 'center',
+    color: 'var(--text-dim)',
+    padding: '24px',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px',
+  },
+  boldText: {
     fontWeight: '600',
     color: '#ffffff',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
   },
-  payloadBox: {
-    fontFamily: 'monospace',
-    fontSize: '0.75rem',
-    backgroundColor: '#050608',
+  simulatorBlock: {
+    borderTop: '1px solid var(--border-dim)',
+    backgroundColor: 'var(--bg-tertiary)',
+    padding: '8px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    flexShrink: 0,
+  },
+  simulatorHeader: {
+    fontSize: '10px',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    color: 'var(--text-muted)',
+    letterSpacing: '0.04em',
+  },
+  simulatorForm: {
+    display: 'flex',
+    gap: '8px',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  simInputGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+  },
+  simLabel: {
+    fontSize: '9px',
+    color: 'var(--text-dim)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.02em',
+  },
+  simSelect: {
+    fontSize: '11px',
+    padding: '3px 6px',
+    height: '24px',
+  },
+  paneContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    overflowY: 'auto',
     padding: '12px',
-    borderRadius: '6px',
-    border: '1px solid var(--border-color)',
-    overflowX: 'auto',
-    maxHeight: '160px',
-    color: '#a1a1aa',
+    gap: '12px',
+  },
+  paneDescription: {
+    fontSize: '11px',
+    color: 'var(--text-muted)',
+    lineHeight: '1.4',
+  },
+  settingsSplit: {
+    display: 'flex',
+    gap: '16px',
+    alignItems: 'stretch',
+    flexWrap: 'wrap',
   },
   formVertical: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '14px',
-    marginTop: '6px',
+    gap: '10px',
   },
   formGroup: {
     display: 'flex',
     flexDirection: 'column',
+    gap: '4px',
+  },
+  codeText: {
+    fontFamily: 'var(--font-mono)',
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    border: '1px solid var(--border-dim)',
+    padding: '1px 4px',
+    borderRadius: '2px',
+    fontSize: '11px',
+    color: '#06b6d4',
+  },
+  inspectorContent: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  emptyInspector: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100%',
+    color: 'var(--text-dim)',
+    fontSize: '10px',
+    fontWeight: '600',
+    textAlign: 'center',
+    border: '1px dashed var(--border-dim)',
+    borderRadius: '4px',
+    padding: '20px',
+  },
+  inspectorTab: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  metaRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: '11px',
     gap: '6px',
   },
-  filterCard: {
-    padding: '16px 20px',
+  metaLabel: {
+    color: 'var(--text-muted)',
+    fontSize: '10px',
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
-  filterForm: {
+  divider: {
+    height: '1px',
+    backgroundColor: 'var(--border-dim)',
+    margin: '6px 0',
+  },
+  preBox: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '10px',
+    backgroundColor: 'var(--bg-primary)',
+    border: '1px solid var(--border-dim)',
+    borderRadius: '3px',
+    padding: '8px',
+    maxHeight: '140px',
+    overflow: 'auto',
+    color: 'var(--text-bright)',
+  },
+  sealBlock: {
     display: 'flex',
-    flexWrap: 'wrap',
-    gap: '16px',
+    flexDirection: 'column',
+    gap: '4px',
+    backgroundColor: 'var(--bg-primary)',
+    border: '1px solid var(--border-dim)',
+    padding: '6px',
+    borderRadius: '3px',
+  },
+  sealRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1px',
+  },
+  sealLabel: {
+    fontSize: '8px',
+    color: 'var(--text-dim)',
+    fontWeight: '700',
+  },
+  sealHash: {
+    fontFamily: 'var(--font-mono)',
+    fontSize: '9px',
+    color: '#eab308',
+    wordBreak: 'break-all',
   },
 };
