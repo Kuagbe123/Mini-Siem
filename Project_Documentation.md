@@ -84,7 +84,13 @@ Implemented using Next.js (TypeScript), Prisma ORM, and PostgreSQL/SQLite databa
 ---
 
 ## 11. Testing Summary
-Tests were run via automated script [`test-verification.js`](file:///c:/Users/User/Desktop/Mini-Siem/test-verification.js) alongside manual UI verification. 100% of defined integration test cases passed successfully. Full testing criteria, expected outputs, and UI progress screenshots are located in [`Testing_Report.md`](file:///c:/Users/User/Desktop/Mini-Siem/Testing_Report.md).
+The testing strategy covers a 4-tier verification workflow:
+1. **Security & OWASP Top 10 Verification:** Executed via [`test/owasp-test-suite.js`](file:///c:/Users/User/Desktop/Mini-Siem/test/owasp-test-suite.js) verifying 8/8 OWASP risks (Broken Access Control, Cryptographic Failures, SQLi, Insecure Design, Error Leakage, Auth Failures, Data Integrity, and Audit Logging).
+2. **Unit Testing:** Executed via [`test/unit-tests.js`](file:///c:/Users/User/Desktop/Mini-Siem/test/unit-tests.js) testing password policies, PBKDF2 hashing, and SHA-256 event chaining.
+3. **Automated E2E Integration:** Executed via [`test-verification.js`](file:///c:/Users/User/Desktop/Mini-Siem/test-verification.js) verifying API endpoints, rule matching, alerts, and database integrity.
+4. **Manual UI Verification:** Browser verification confirming glassmorphic layout, cyber auditing animations, and interactive password reveal toggles.
+
+Detailed test matrices, expected results, and logs are documented in [`Testing_Report.md`](file:///c:/Users/User/Desktop/Mini-Siem/Testing_Report.md).
 
 ---
 
