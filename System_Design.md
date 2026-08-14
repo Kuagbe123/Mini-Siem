@@ -209,7 +209,7 @@ The Presentation Layer will follow a **premium dark-theme/glassmorphic design** 
 ### Layout Outline
 ```
 +-------------------------------------------------------------------------------------------------+
-|  🛡️ Mini-SIEM Admin   [Dashboard]  [Events]  [Alerts]  [Settings]                 User: admin (Admin) |
+|   Mini-SIEM Admin   [Dashboard]  [Events]  [Alerts]  [Settings]                 User: admin (Admin) |
 +-------------------------------------------------------------------------------------------------+
 |                                                                                                 |
 |  SECURITY POSTURE OVERVIEW (Last 24 Hours)                                                      |
