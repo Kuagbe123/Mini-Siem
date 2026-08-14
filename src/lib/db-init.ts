@@ -34,6 +34,64 @@ export async function ensureDatabaseSeeded() {
       console.log('Seeded default administrator account.');
     }
 
+    // 1.1. Ensure Default Analyst User Exists
+    const analystExists = await prisma.user.findFirst({
+      where: { role: Role.ANALYST },
+    });
+
+    if (!analystExists) {
+      const defaultAnalystUsername = 'analyst';
+      const defaultAnalystPassword = 'AnalystPassword123!';
+      const passwordHash = hashPassword(defaultAnalystPassword);
+      
+      const newAnalyst = await prisma.user.create({
+        data: {
+          username: defaultAnalystUsername,
+          passwordHash: passwordHash,
+          role: Role.ANALYST,
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          userId: newAnalyst.id,
+          action: 'SYSTEM_INITIALIZATION',
+          details: 'Default Analyst account provisioned successfully.',
+        },
+      });
+      
+      console.log('Seeded default analyst account.');
+    }
+
+    // 1.2. Ensure Default Auditor User Exists
+    const auditorExists = await prisma.user.findFirst({
+      where: { role: Role.AUDITOR },
+    });
+
+    if (!auditorExists) {
+      const defaultAuditorUsername = 'auditor';
+      const defaultAuditorPassword = 'AuditorPassword123!';
+      const passwordHash = hashPassword(defaultAuditorPassword);
+      
+      const newAuditor = await prisma.user.create({
+        data: {
+          username: defaultAuditorUsername,
+          passwordHash: passwordHash,
+          role: Role.AUDITOR,
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          userId: newAuditor.id,
+          action: 'SYSTEM_INITIALIZATION',
+          details: 'Default Auditor account provisioned successfully.',
+        },
+      });
+      
+      console.log('Seeded default auditor account.');
+    }
+
     // 2. Ensure Default Detection Rules Exist (FR-3.3, FR-3.4)
     const ruleCount = await prisma.detectionRule.count();
     if (ruleCount === 0) {
