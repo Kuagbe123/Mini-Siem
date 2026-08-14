@@ -56,7 +56,24 @@ Executed via `node test/unit-tests.js` (and configurable via `npm test`):
 
 ---
 
-## 4. Manual UI Verification Cases
+## 4. OWASP Top 10 Security Workflow Test Matrix
+
+Executed via `node test/owasp-test-suite.js` (or `npm run test:owasp`):
+
+| OWASP Category | Vulnerability Name | Mitigation & Test Scenario | Result / Verification | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **A01:2021** | Broken Access Control | Attempt privilege escalation to `/api/sources` without Admin role. | Blocked with HTTP 403 Forbidden. | **PASS** |
+| **A02:2021** | Cryptographic Failures | Verify PBKDF2 10,000-iteration hashing, SHA-512 digest & timing-safe equality checks. | Passwords hashed with salt; constant-time check. | **PASS** |
+| **A03:2021** | Injection (SQLi) | Submit SQLi payload `' OR '1'='1 --` in authentication fields. | Prisma parameterized queries prevent SQL execution; returns 401. | **PASS** |
+| **A04:2021** | Insecure Design | Verify cryptographic SHA-256 event log hash block chaining. | Tamper-evident ledger integrity preserved. | **PASS** |
+| **A05:2021** | Security Misconfiguration | Submit malformed JSON body to API routes. | Handled gracefully without stack trace leak. | **PASS** |
+| **A07:2021** | Identification & Auth Failures | Validate password strength rules (FR-6.6) & brute-force threshold rules. | Weak passwords rejected; failed logins logged. | **PASS** |
+| **A08:2021** | Data Integrity Failures | Submit incomplete payload structure to `/api/events`. | Rejected via 400 Bad Request schema validator. | **PASS** |
+| **A09:2021** | Logging & Monitoring Failures | Trigger failed authentication attempts and administrative actions. | Automatically recorded in `AUDIT_LOG` database table. | **PASS** |
+
+---
+
+## 5. Manual UI Verification Cases
 
 Manual browser checks were carried out to ensure visual quality, performance, and interaction fidelity conform to modern design aesthetics and Apple-style custom standards.
 
@@ -92,7 +109,7 @@ Manual browser checks were carried out to ensure visual quality, performance, an
 
 ---
 
-## 5. Defect Log and Corrective Actions
+## 6. Defect Log and Corrective Actions
 
 During integration testing, one warning was flagged by Next.js during compilation:
 * **Defect:** Unused catch block parameter `err` in [`src/app/login/page.tsx`](file:///c:/Users/User/Desktop/Mini-Siem/src/app/login/page.tsx#L220).
@@ -101,6 +118,6 @@ During integration testing, one warning was flagged by Next.js during compilatio
 
 ---
 
-## 6. Conclusion
+## 7. Conclusion
 
 The testing activities demonstrate that the Mini-SIEM platform satisfies **100%** of its defined functional scope. The automated tests successfully validate security boundaries and transactional integrity, while the manual checks confirm a high-fidelity, professional user interface. The platform is verified as stable and ready for deployment.
