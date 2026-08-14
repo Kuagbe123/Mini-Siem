@@ -1016,7 +1016,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: '600',
     padding: '8px 12px',
     cursor: 'pointer',
-    borderBottom: '2px solid transparent',
+    borderBottomWidth: '2px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'transparent',
     transition: 'var(--transition-fast)',
   },
   tabItemActive: {
