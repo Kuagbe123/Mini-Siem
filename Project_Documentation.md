@@ -3,8 +3,8 @@
 
 **Course:** CSCD602: Advanced Software Engineering (3 Credits)  
 **Assessment:** Individual Project-Based Examination  
-**Prepared By:** [Student Name] — [Student ID]  
-**Date:** [Submission Date]  
+**Prepared By:** Edward Kuagbenu — 22427388  
+**Date:** 15-08-2026  
 
 ---
 

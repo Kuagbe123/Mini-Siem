@@ -1,5 +1,5 @@
-Student Name: [Insert Your Name Here]
-Student ID: [Insert Your Student ID Here]
+Student Name: Edward Kuagbenu
+Student ID: 22427388
 Project Title: Mini Security Information and Event Management (Mini-SIEM) System
 
 Live Application: https://mini-siem-wam4.onrender.com
